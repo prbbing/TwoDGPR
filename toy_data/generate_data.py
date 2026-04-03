@@ -1,16 +1,31 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from scipy.optimize import minimize_scalar
 
 np.random.seed(42)
 
 
+def estimate_abs_max(f, lim):
+    a, b = float(lim[0]), float(lim[1])
+
+    def neg_abs_f(x):
+        return -abs(float(f(x)))
+
+    res = minimize_scalar(neg_abs_f, bounds=(a, b), method="bounded")
+    return max(abs(float(f(a))), abs(float(f(b))), -float(res.fun))
+
+
 def generate_data(points, lim, noise, f, bin):
     y = []
+
+    f_max = estimate_abs_max(f, lim)
+    M = 1.1 * f_max
+
     while len(y) < points:
         x = np.random.uniform(lim[0], lim[1], points)
-        p_x = np.abs(f(x))
-        p_x = p_x / (np.max(p_x) * 1.1)
+        p_x = np.abs(np.asarray(f(x), dtype=float)) / M
+        p_x = np.clip(p_x, 0.0, 1.0)
         random_values = np.random.uniform(0, 1, points)
         accepted = random_values < p_x
         y.extend(x[accepted].tolist())
@@ -116,10 +131,10 @@ def dependent(num, xlim, ylim, xbin, ybin, cov, fx, fy, noisex=None, noisey=None
 if __name__ == "__main__":
     # Example usage:
     num_points = 10000
-    x_limits = (-10, 10)
-    y_limits = (-10, 10)
-    x_bins = 100
-    y_bins = 100
+    x_limits = (-0.5, 0.5)
+    y_limits = (-0.5, 0.5)
+    x_bins = 30
+    y_bins = 30
     covariance_matrix = [[1, 0.8], [0.8, 1]]
 
     df_independent = independent(
@@ -129,8 +144,10 @@ if __name__ == "__main__":
         y_limits,
         x_bins,
         y_bins,
-        lambda x: np.exp(-(x**2) / 20),
-        lambda y: np.exp(-(y**2) / 20),
+        lambda x: 4 * np.exp(-((x) ** 2) / 0.05),
+        lambda y: 4 * np.exp(-((y) ** 2) / 0.05),
+        noise_x=np.zeros(num_points),
+        noise_y=np.zeros(num_points),
     )
     df_dependent = dependent(
         num_points,
@@ -139,8 +156,10 @@ if __name__ == "__main__":
         x_bins,
         y_bins,
         covariance_matrix,
-        lambda x: np.exp(-(x**2) / 20),
-        lambda y: np.exp(-(y**2) / 20),
+        lambda x: 4 * np.exp(-((x) ** 2) / 0.05),
+        lambda y: 4 * np.exp(-((y) ** 2) / 0.05),
+        noisex=np.zeros(num_points),
+        noisey=np.zeros(num_points),
     )
 
     df_dependent.to_csv("dependent_data.csv", index=False)
